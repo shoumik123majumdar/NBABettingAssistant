@@ -1,21 +1,9 @@
-
-
-'''
-Key:
-pts - points
-reb - rebounds
-ast - assists
-bool - Over/Under
-
-'''
-
-
 from BettingAssistant import BettingAssistant
 
-assistant = BettingAssistant("Lebron",28.5,["pts"],True)
 
-assistant.prop_hit_analysis(printable=True)
+assistant = BettingAssistant("Kawhi Leonard",27.5,["pts"],True,matchup="PHX",printable=True)
 
+print(assistant.prop_hit_analysis(printable=True))
 
 
 
