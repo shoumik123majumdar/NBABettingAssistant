@@ -2,26 +2,9 @@ import matplotlib
 from nba_api.stats.endpoints import playergamelog
 from nba_api.stats.static import players
 
-'''
-Key:
-pts - points
-reb - rebounds
-ast - assists
-
-Parameter Formatting/Examples:
-player_name = Russell Westbrook
-prop_val = 30
-stat_list = ["pts","ast"]
-bool - Over/Under --> False
-num_games = 82
-season = "2022-23"
-matchup = Suns --> PHX
-printable = True 
-'''
-
 
 class BettingAssistant():
-    def __init__(self, player_name, prop_val, stat_list, bool, num_games=0, season="2022-23", matchup="none",
+    def __init__(self, player_name, prop_val, stat_list, bool, num_games=0, season="2022-23", matchup="None",
                  printable=False):
         self.player_name = player_name
         self.player_id = players.find_players_by_full_name(self.player_name)[0]['id']
@@ -47,13 +30,17 @@ class BettingAssistant():
             return False
         elif (stat < self.prop_val and self.bool == False):
             return True
+        elif(stat==self.prop_val and self.bool==True):
+            return False
+        elif(stat==self.prop_val and self.bool==False):
+            return True
 
     # Helper Method
     # Determines all the times the stat hits and returns that value.
     def num_stat_hit(self):
         num_stat_hit = 0
         response = playergamelog.PlayerGameLog(player_id=self.player_id, season=self.season)
-        if (self.matchup != "none"):
+        if (self.matchup != "None"):
             num_games = len(response.get_normalized_dict()['PlayerGameLog'])
         else:
             num_games = self.num_games_played
@@ -61,16 +48,17 @@ class BettingAssistant():
             complete_stat_total = 0
             for stat_name in self.stat_list:
                 matchup_str = response.get_normalized_dict()['PlayerGameLog'][i]['MATCHUP']
-                if self.matchup != "none" and matchup_str.__contains__(self.matchup):
+                if self.matchup != "None" and matchup_str.__contains__(self.matchup):
                     if self.printable:
                         print(str(
                             response.get_normalized_dict()['PlayerGameLog'][i][stat_name.upper()]) + " " + stat_name)
                     complete_stat_total += response.get_normalized_dict()['PlayerGameLog'][i][stat_name.upper()]
-                elif self.matchup == "none":
+                elif self.matchup == "None":
                     if self.printable:
                         print(str(
                             response.get_normalized_dict()['PlayerGameLog'][i][stat_name.upper()]) + " " + stat_name)
                     complete_stat_total += response.get_normalized_dict()['PlayerGameLog'][i][stat_name.upper()]
+
             if self.bet_won_bool(complete_stat_total):
                 num_stat_hit += 1
         return num_stat_hit
@@ -79,7 +67,7 @@ class BettingAssistant():
         response = playergamelog.PlayerGameLog(player_id=self.player_id, season=self.season)
         games = response.get_normalized_dict()['PlayerGameLog']
         games_played = 0
-        if self.matchup == "none":
+        if self.matchup == "None":
             return len(games)
         else:
             for i in range(len(games)):
@@ -96,7 +84,7 @@ class BettingAssistant():
         stat_string = self.stat_list[0] + ","
         for i in range(1, len(self.stat_list)):
             stat_string += self.stat_list[i] + ","
-        if self.matchup == "none":
+        if self.matchup == "None":
             matchup = "every team in the league"
         else:
             matchup = self.matchup
