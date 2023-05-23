@@ -113,7 +113,7 @@ for proj in projection_list:
 
 
 keys = list(final_dict)
-keys.sort().reverse()
+keys.sort()
 for key in keys:
     print(final_dict[key])
 
