@@ -94,7 +94,7 @@ class BettingAssistant():
         num_hits = self.num_stat_hit()
         percentage_hits = round(num_hits / self.num_games_played * 100, 2)
         bet_string = self.format_bet_string()
+        print_string = f"The bet that {bet_string} hit {num_hits} out of his last {self.num_games_played} games or {percentage_hits}% of the time"
         if printable:
-            print(f"The bet that {bet_string} hit {num_hits} out of his last {self.num_games_played} games "
-                  f"or {percentage_hits}% of the time")
-        return percentage_hits
+            print(print_string)
+        return percentage_hits,print_string
