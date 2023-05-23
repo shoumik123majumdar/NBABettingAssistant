@@ -99,21 +99,33 @@ def convertToReadableStat(stat):
         return ["blk"]
     elif(stat=="Turnovers"):
         return ["tov"]
+    elif(stat == "3-PT Attempted"):
+        return ["fg3a"]
+    elif(stat == "Personal Fouls"):
+        return ["pf"]
+    elif(stat=="FG Attempted"):
+        return ["fga"]
+    elif(stat=="FG Made"):
+        return ["fgm"]
+    elif(stat=="Minutes Played"):
+        return ["min"]
 
 
 final_dict = {}
 for proj in projection_list:
     for id in playerIDList:
         stat_dict = projection_dict[proj]
-        if(id in stat_dict and name_dict[id].__contains__("+") != True and proj!="Fantasy Score"):
+        if(id in stat_dict and name_dict[id].__contains__("+") != True and proj!="Fantasy Score" and proj!="Dunks" and proj!="Points In First 6 Minutes"):
             assistant = BettingAssistant(name_dict[id],stat_dict[id],convertToReadableStat(proj),True)
             time.sleep(0.600)
-            percentage_chance,print_string = assistant.prop_hit_analysis(printable = False)
+            percentage_chance,print_string = assistant.prop_hit_analysis(printable = True)
             final_dict[percentage_chance] = print_string
 
 
+print("\n\n\n\n\nBest Picks of the Day!:")
 keys = list(final_dict)
 keys.sort()
+keys.reverse()
 for key in keys:
     print(final_dict[key])
 
