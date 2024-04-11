@@ -4,7 +4,7 @@ from nba_api.stats.static import players
 
 
 class BettingAssistant():
-    def __init__(self, player_name, prop_val, stat_list, bool, num_games=0, season="2022-23", matchup="None",
+    def __init__(self, player_name, prop_val, stat_list, bool, num_games=0, season="2023-24", matchup="None",
                  printable=False):
         self.player_name = player_name
         self.player_id = players.find_players_by_full_name(self.player_name)[0]['id']
@@ -93,6 +93,7 @@ class BettingAssistant():
     def prop_hit_analysis(self, printable=False):
         num_hits = self.num_stat_hit()
         percentage_hits = round(num_hits / self.num_games_played * 100, 2)
+
         bet_string = self.format_bet_string()
         print_string = f"The bet that {bet_string} hit {num_hits} out of his last {self.num_games_played} games or {percentage_hits}% of the time"
         if printable:

@@ -1,14 +1,9 @@
 import json
-import cloudscraper
 import time
 from BettingAssistant import BettingAssistant
-from scraper import PickScraper
-'''
-Key:
-pts - points
-reb - rebounds
-ast - assists
+from selenium import webdriver
 
+'''
 Parameter Formatting/Examples:
 player_name = Russell Westbrook
 prop_val = 30
@@ -19,107 +14,134 @@ season = "2022-23"
 matchup = Suns --> PHX
 or "None" for all games
 printable = True 
+
+Sample Game Log:
+{'SEASON_ID': '22023', 'Player_ID': 203084, 'Game_ID': '0022300663', 'GAME_DATE': 'JAN 29, 2024', 'MATCHUP': 'SAC @ MEM', 'WL': 'W', 'MIN': 35, 'FGM': 5, 'FGA': 15, 'FG_PCT': 0.333, 'FG3M': 2, 'FG3A': 10, 'FG3_PCT': 0.2, 'FTM': 0, 'FTA': 0, 'FT_PCT': 0.0, 'OREB': 0, 'DREB': 3, 'REB': 3, 'AST': 4, 'STL': 0, 'BLK': 0, 'TOV': 1, 'PF': 1, 'PTS': 12, 'PLUS_MINUS': 15, 'VIDEO_AVAILABLE': 1}
 '''
 
 
-
-
 LEAGUE_ID = 7  # NBA league ID
+stat_mapping = {
+        "Free Throws Made": ["ftm"],
+        "Rebounds": ["reb"],
+        "Assists": ["ast"],
+        "Points": ["pts"],
+        "Pts+Rebs+Asts": ["pts", "reb", "ast"],
+        "3-PT Made": ["fg3m"],
+        "Pts+Rebs": ["pts", "reb"],
+        "Pts+Asts": ["pts", "ast"],
+        "Rebs+Asts": ["reb", "ast"],
+        "Blks+Stls": ["blk", "stl"],
+        "Steals": ["stl"],
+        "Blocked Shots": ["blk"],
+        "Turnovers": ["tov"],
+        "3-PT Attempted": ["fg3a"],
+        "Personal Fouls": ["pf"],
+        "FG Attempted": ["fga"],
+        "FG Made": ["fgm"],
+        "Minutes Played": ["min"],
+        "Defensive Rebounds":["dreb"],
+        "Offensive Rebounds":["oreb"]
+}
 
-scraper = cloudscraper.create_scraper()
-resp = scraper.get(f"https://api.prizepicks.com/projections?league_id={LEAGUE_ID}&per_page=250&single_stat=true")
-resp2 = scraper.get(f"https://api.prizepicks.com/projections?league_id={LEAGUE_ID}&per_page=250&single_stat=false")
+bad_names = ["GG Jackson II", "Nicolas Claxton", "Trey Jemison"]
 
-x= json.loads(resp.text)
-x2 = json.loads(resp2.text)
 
-#Creates a hashmap of playerID-->name and creates a list of playerIDs
+# Makes the request to scrape PrizePick's board using selenium
+def scrape_html(page_url):
+    driver = webdriver.Chrome()
+    driver.get(page_url)
+    json_text = driver.page_source
+    driver.quit()
+    return clean_json(json_text)
+
+
+# Cleans html text provided so it only reveals the json
+def clean_json(html_text):
+    start_index = html_text.find('{')
+    end_index = html_text.rfind('}')
+    if start_index != -1 and end_index !=-1:
+        return html_text[start_index:end_index+1]
+    else:
+        return "Not Found"
+
+
+#Single Stat
+x = json.loads(scrape_html(f"https://api.prizepicks.com/projections?league_id={LEAGUE_ID}&per_page=250&state_code=MA&single_stat=true&game_mode=prizepools"))
+
+#Multi Stat
+#x2 = json.loads(scrape_html(f"https://api.prizepicks.com/projections?league_id={LEAGUE_ID}&per_page=250&state_code=NY&single_stat=false"))
+
+
+#Creates a hashmap of playerID--> name and creates a list of playerIDs
+def generate_playerid_list(json, name_dict):
+    playerIDList = []
+    for i in range(len(json['included'])):
+        playerID = json['included'][i]['id']
+        #If it is a player and has not already been added to the playerIDList...
+        if(json['included'][i]['type'] == "new_player" and playerIDList.__contains__(playerID) != True):
+            playerID = json['included'][i]['id']
+            name_dict[playerID] = json['included'][i]['attributes']['name']
+            playerIDList.append(playerID)
+
+
 name_dict = {}
-playerIDList = [];
-for i in range(len(x['included'])):
-    if(x['included'][i]['type']== "new_player"):
-        name_dict[x['included'][i]['id']] = x['included'][i]['attributes']['name']
-        playerIDList.append(x['included'][i]['id'])
+generate_playerid_list(x,name_dict)
+#generate_playerid_list(x2,name_dict)
+#print(name_dict)
 
-for i in range(len(x['included'])):
-    if (x2['included'][i]['type'] == "new_player"):
-        if (playerIDList.__contains__(x2['included'][i]['id']) != True):
-            name_dict[x2['included'][i]['id']] = x2['included'][i]['attributes']['name']
-            playerIDList.append(x2['included'][i]['id'])
-
-
+# Gets all the different projection types for the day ie: 'Rebs+Asts'
+# Creates dict of corresponding dictionaries for every projection type ie: 'Pts+Rebs+Asts': {id:line_score}
 def get_projection_types(dict):
     proj_list = []
     for i in range(len(dict['included'])):
-        if (dict['data'][i]['type'] == "projection"):
+        # Second conditional makes sure to only pick stat_types that are tracked in the game log
+        if (dict['data'][i]['type'] == "projection" and dict['data'][i]['attributes']['stat_type'] in stat_mapping.keys()):
             proj_list.append(dict['data'][i]['attributes']['stat_type'])
     proj_list = list(set(proj_list))
     projection_dict = {proj: {} for proj in proj_list}
-    return proj_list,projection_dict
+    return projection_dict
 
-projection_list, projection_dict = get_projection_types(x)
+projection_dict = get_projection_types(x)
+#print(projection_dict)
 
-def fill_projection_list(x,projection_list,projection_dict):
-    for i in range(len(x['data'])):
-        for proj in projection_list:
-            if(x['data'][i]['attributes']['stat_type'] == proj):
-                projection_dict[proj][x['data'][i]['relationships']['new_player']['data']['id']] = x['data'][i]['attributes'][
-                    'line_score']
+def fill_projection_dict(x,projection_dict):
+    for projection_data in x['data']:
+        proj_type = projection_data['attributes']['stat_type']
+        player_id = projection_data['relationships']['new_player']['data']['id']
+        line_score = projection_data['attributes']['line_score']
+        if proj_type in projection_dict and player_id not in projection_dict[proj_type] and projection_data['attributes']['odds_type'] == "standard":
+            #print(proj_type)
+            #print(player_id)
+            #print(name_dict[player_id])
+            #print(line_score)
+            projection_dict[proj_type][player_id] = line_score
+
+
+fill_projection_dict(x, projection_dict)
+#print(projection_dict)
+#fill_projection_dict(x2, projection_dict)
+#print(projection_dict)
 
 
 
-fill_projection_list(x,projection_list,projection_dict)
-fill_projection_list(x2,projection_list,projection_dict)
-
-
-def convertToReadableStat(stat):
-    if(stat == "Free Throws Made"):
-        return ["ftm"]
-    elif(stat == "Rebounds"):
-        return ["reb"]
-    elif(stat == "Assists"):
-        return ["ast"]
-    elif(stat == "Points"):
-        return ["pts"]
-    elif(stat == "Pts+Rebs+Asts"):
-        return ["pts","reb","ast"]
-    elif(stat == "3-PT Made"):
-        return ["fg3m"]
-    elif(stat == "Pts+Rebs"):
-        return ["pts","reb"]
-    elif(stat == "Pts+Asts"):
-        return ["pts","ast"]
-    elif(stat == "Rebs+Asts"):
-        return ["reb","ast"]
-    elif(stat == "Blks+Stls"):
-        return ["blk","stl"]
-    elif(stat=="Steals"):
-        return ["stl"]
-    elif(stat=="Blocks"):
-        return ["blk"]
-    elif(stat=="Turnovers"):
-        return ["tov"]
-    elif(stat == "3-PT Attempted"):
-        return ["fg3a"]
-    elif(stat == "Personal Fouls"):
-        return ["pf"]
-    elif(stat=="FG Attempted"):
-        return ["fga"]
-    elif(stat=="FG Made"):
-        return ["fgm"]
-    elif(stat=="Minutes Played"):
-        return ["min"]
-
+def convert_to_readable_stat(stat, stat_mapping):
+    return stat_mapping.get(stat, [])
 
 final_dict = {}
-for proj in projection_list:
-    for id in playerIDList:
-        stat_dict = projection_dict[proj]
-        if(id in stat_dict and name_dict[id].__contains__("+") != True and proj!="Fantasy Score" and proj!="Dunks" and proj!="Points In First 6 Minutes"):
-            assistant = BettingAssistant(name_dict[id],stat_dict[id],convertToReadableStat(proj),True)
-            time.sleep(0.600)
+for proj in projection_dict:
+    #print(projection_dict[proj])
+    #print(name_dict)
+    #counter = 0
+    for id in projection_dict[proj]:
+        if(name_dict[id].__contains__("+") != True and name_dict[id] not in bad_names):
+            #print(name_dict[id])
+            assistant = BettingAssistant(name_dict[id],projection_dict[proj][id],convert_to_readable_stat(proj,stat_mapping),True)
+            time.sleep(0.400)
             percentage_chance,print_string = assistant.prop_hit_analysis(printable = True)
-            final_dict[percentage_chance] = print_string
+            final_dict[percentage_chance] = print_string  # Final results getting replaced since there are duplicated percentage_changes, find a better key for the data
+            #counter+=1
+    #print(counter)
 
 
 print("\n\n\n\n\nBest Picks of the Day!:")
@@ -129,24 +151,3 @@ keys.reverse()
 for key in keys:
     print(final_dict[key])
 
-'''
-assistant = BettingAssistant("Julius Randle",13,["reb","ast"],True,printable=True)
-
-assistant.prop_hit_analysis(printable=True)
-'''
-
-
-
-
-#Create a list of totals for each game in a list.
-#Compare each total using the
-
-
-'''
-IDEAS
-# Russell Westbrook, 16, pts
-
-#Later
-def graph_analysis():
-    return 0
-'''
