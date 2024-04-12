@@ -1,7 +1,30 @@
 import matplotlib
 from nba_api.stats.endpoints import playergamelog
 from nba_api.stats.static import players
+import matplotlib.pyplot as plt
 
+stat_mapping = {
+        "Free Throws Made": ["ftm"],
+        "Rebounds": ["reb"],
+        "Assists": ["ast"],
+        "Points": ["pts"],
+        "Pts+Rebs+Asts": ["pts", "reb", "ast"],
+        "3-PT Made": ["fg3m"],
+        "Pts+Rebs": ["pts", "reb"],
+        "Pts+Asts": ["pts", "ast"],
+        "Rebs+Asts": ["reb", "ast"],
+        "Blks+Stls": ["blk", "stl"],
+        "Steals": ["stl"],
+        "Blocked Shots": ["blk"],
+        "Turnovers": ["tov"],
+        "3-PT Attempted": ["fg3a"],
+        "Personal Fouls": ["pf"],
+        "FG Attempted": ["fga"],
+        "FG Made": ["fgm"],
+        "Minutes Played": ["min"],
+        "Defensive Rebounds":["dreb"],
+        "Offensive Rebounds":["oreb"]
+}
 
 class BettingAssistant():
     def __init__(self, player_name, prop_val, stat_list, bool, num_games=0, season="2023-24", matchup="None",
@@ -12,12 +35,18 @@ class BettingAssistant():
         self.prop_val = prop_val
         self.stat_list = stat_list
         self.bool = bool
+        self.bool_str = ""
+        if self.bool == False:
+            self.bool_str = "UNDER"
+        else:
+            self.bool_str = "OVER"
         self.matchup = matchup
         self.printable = printable
         if num_games == 0:
             self.num_games_played = self.get_games_played()
         else:
             self.num_games_played = num_games
+        self.totals = []
 
     # Helper Method
     # Determines if a bet hits based on if a stat is greater than or less than the prop value
@@ -58,7 +87,7 @@ class BettingAssistant():
                         print(str(
                             response.get_normalized_dict()['PlayerGameLog'][i][stat_name.upper()]) + " " + stat_name)
                     complete_stat_total += response.get_normalized_dict()['PlayerGameLog'][i][stat_name.upper()]
-
+            self.totals.append(complete_stat_total)
             if self.bet_won_bool(complete_stat_total):
                 num_stat_hit += 1
         return num_stat_hit
@@ -77,10 +106,6 @@ class BettingAssistant():
 
     # Helper Method
     def format_bet_string(self):
-        if self.bool == True:
-            over_under = "OVER"
-        else:
-            over_under = "UNDER"
         stat_string = self.stat_list[0] + ","
         for i in range(1, len(self.stat_list)):
             stat_string += self.stat_list[i] + ","
@@ -88,7 +113,7 @@ class BettingAssistant():
             matchup = "every team in the league"
         else:
             matchup = self.matchup
-        return f"{self.player_name} will drop {over_under} {self.prop_val} {stat_string} against {matchup},"
+        return f"{self.player_name} will drop {self.bool_str} {self.prop_val} {stat_string} against {matchup},"
 
     def prop_hit_analysis(self, printable=False):
         num_hits = self.num_stat_hit()
@@ -99,3 +124,32 @@ class BettingAssistant():
         if printable:
             print(print_string)
         return percentage_hits,print_string
+
+    def tabularize_prop(self):
+        data = {
+            "Name" : self.player_name,
+            "Line Score": self.prop_val,
+            "Stat Type" : self.stat_list,
+            "Over/Under?" : self.bool_str
+        }
+
+        percentage_hits, print_string = self.prop_hit_analysis()
+        data["Probability"] = percentage_hits
+        data["Printable Prop"] = print_string
+        return data
+
+
+    def visualize_prop(self):
+        self.prop_hit_analysis()
+        plt.plot(range(len(self.totals)),self.totals)
+        plt.axhline(y=self.prop_val, color='r', linestyle='--', label="Given Prop")
+
+        stat_type = ""
+        for key in stat_mapping:
+            if stat_mapping[key] == self.stat_list:
+                stat_type = key
+
+        plt.xlabel("Games Played")
+        plt.ylabel(stat_type)
+        plt.title(f"{self.player_name}'s performance trying to get {self.bool_str} {self.prop_val} {stat_type} ")
+        plt.show()
