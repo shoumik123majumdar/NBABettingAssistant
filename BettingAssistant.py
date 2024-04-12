@@ -26,6 +26,7 @@ stat_mapping = {
         "Offensive Rebounds":["oreb"]
 }
 
+
 class BettingAssistant():
     def __init__(self, player_name, prop_val, stat_list, bool, num_games=0, season="2023-24", matchup="None",
                  printable=False):
@@ -36,10 +37,10 @@ class BettingAssistant():
         self.stat_list = stat_list
         self.bool = bool
         self.bool_str = ""
-        if self.bool == False:
-            self.bool_str = "UNDER"
-        else:
+        if self.bool:
             self.bool_str = "OVER"
+        else:
+            self.bool_str = "UNDER"
         self.matchup = matchup
         self.printable = printable
         if num_games == 0:
@@ -51,17 +52,17 @@ class BettingAssistant():
     # Helper Method
     # Determines if a bet hits based on if a stat is greater than or less than the prop value
     def bet_won_bool(self, stat):
-        if (stat > self.prop_val and self.bool == True):
+        if stat > self.prop_val and self.bool == True:
             return True
-        elif (stat > self.prop_val and self.bool == False):
+        elif stat > self.prop_val and self.bool == False:
             return False
-        elif (stat < self.prop_val and self.bool == True):
+        elif stat < self.prop_val and self.bool == True:
             return False
-        elif (stat < self.prop_val and self.bool == False):
+        elif stat < self.prop_val and self.bool == False:
             return True
-        elif(stat==self.prop_val and self.bool==True):
+        elif stat==self.prop_val and self.bool==True:
             return False
-        elif(stat==self.prop_val and self.bool==False):
+        elif stat==self.prop_val and self.bool==False :
             return True
 
     # Helper Method
@@ -130,14 +131,14 @@ class BettingAssistant():
             "Name" : self.player_name,
             "Line Score": self.prop_val,
             "Stat Type" : self.stat_list,
-            "Over/Under?" : self.bool_str
+            "Over/Under?" : self.bool_str,
+            "Prop Text" : self.format_bet_string()
         }
 
         percentage_hits, print_string = self.prop_hit_analysis()
         data["Probability"] = percentage_hits
-        data["Printable Prop"] = print_string
+        data["Printable Result"] = print_string
         return data
-
 
     def visualize_prop(self):
         self.prop_hit_analysis()

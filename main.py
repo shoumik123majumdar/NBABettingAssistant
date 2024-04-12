@@ -2,7 +2,10 @@ import json
 import time
 from BettingAssistant import BettingAssistant
 from selenium import webdriver
-import pandas as pd
+import matplotlib.pyplot as plt
+import mplcursors
+
+
 '''
 Parameter Formatting/Examples:
 player_name = Russell Westbrook
@@ -67,7 +70,6 @@ def clean_json(html_text):
     else:
         return "Not Found"
 
-x = json.loads(scrape_html(f"https://api.prizepicks.com/projections?league_id={LEAGUE_ID}&per_page=250&state_code=MA&single_stat=true&game_mode=prizepools"))
 
 #Creates a hashmap of playerID--> name and creates a list of playerIDs
 def generate_playerid_list(json, name_dict):
@@ -81,24 +83,20 @@ def generate_playerid_list(json, name_dict):
             playerIDList.append(playerID)
 
 
-name_dict = {}
-generate_playerid_list(x,name_dict)
-
-
 # Gets all the different projection types for the day ie: 'Rebs+Asts'
 # Creates dict of corresponding dictionaries for every projection type ie: 'Pts+Rebs+Asts': {id:line_score}
 def get_projection_types(dict):
     proj_list = []
     for i in range(len(dict['included'])):
         # Second conditional makes sure to only pick stat_types that are tracked in the game log
-        if (dict['data'][i]['type'] == "projection" and dict['data'][i]['attributes']['stat_type'] in stat_mapping.keys()):
+        if dict['data'][i]['type'] == "projection" and dict['data'][i]['attributes']['stat_type'] in stat_mapping.keys():
             proj_list.append(dict['data'][i]['attributes']['stat_type'])
     proj_list = list(set(proj_list))
     projection_dict = {proj: {} for proj in proj_list}
     return projection_dict
 
-projection_dict = get_projection_types(x)
 
+#Fills the projection dictionary after it is created
 def fill_projection_dict(x,projection_dict):
     for projection_data in x['data']:
         proj_type = projection_data['attributes']['stat_type']
@@ -108,31 +106,70 @@ def fill_projection_dict(x,projection_dict):
             projection_dict[proj_type][player_id] = line_score
 
 
-fill_projection_dict(x, projection_dict)
-
-
-
-
+#Converts the given stat text from the PrizePicks database into a stat_list
+#This is so that the BettingAssistant class can process it
 def convert_to_readable_stat(stat, stat_mapping):
     return stat_mapping.get(stat, [])
 
 
-final_dict = {}
-counter = 1
-for proj in projection_dict:
-    for id in projection_dict[proj]:
-        if(name_dict[id].__contains__("+") != True and name_dict[id] not in bad_names):
-            assistant = BettingAssistant(name_dict[id],projection_dict[proj][id],convert_to_readable_stat(proj,stat_mapping),True)
-            time.sleep(0.400)
-            final_dict[f'player{counter}'] = assistant.tabularize_prop()
-            counter+=1
-print(final_dict)
+#Creates a visualization of all of the props and their probabilities.
+def visualize_props(data):
+    probability_list = []
+    prop_list = []
+    for player, prop_info in data.items():
+        projection = prop_info['Prop Text']
+        probability = prop_info['Probability']
+
+        prop_list.append(projection)
+        probability_list.append(probability)
+
+    plt.figure(figsize=(10, 6))
+    plot = plt.scatter(prop_list, probability_list, color='blue', alpha=0.5)
+    plt.title('Probability vs. Projection')
+    plt.xlabel('Projection')
+    plt.ylabel('Probability (%)')
+    plt.xticks([])
+    mplcursors.cursor(plot)
+    plt.show()
 
 
-print("\n\n\n\n\nBest Picks of the Day!:")
-sorted_props = sorted(final_dict.items(),key=lambda x: x[1]["Probability"],reverse=True)
-for player, prop_data in sorted_props:
-    print(prop_data['Printable Prop'])
+def main():
+    #First load up the json by scraping the PrizePicks website
+    x = json.loads(scrape_html(
+        f"https://api.prizepicks.com/projections?league_id={LEAGUE_ID}&per_page=250&state_code=MA&single_stat=true&game_mode=prizepools"))
+
+    #Map the players name to their database id
+    name_dict = {}
+    generate_playerid_list(x, name_dict)
+
+    #Map the projections to the corresponding player's database id
+    projection_dict = get_projection_types(x)
+    fill_projection_dict(x, projection_dict)
+
+    #This dictionary will contain all of the props in a tabularized format
+    final_dict = {}
+    counter = 1
+    for proj in projection_dict:
+        for id in projection_dict[proj]:
+            #Make sure we are not including multi-player bets (will have "+" in them)
+            #Avoid certain players due to their name's not being registered in the NBA API database
+            if name_dict[id].__contains__("+") != True and name_dict[id] not in bad_names:
+                assistant = BettingAssistant(name_dict[id],projection_dict[proj][id],convert_to_readable_stat(proj,stat_mapping),True)
+                #Wait 0.4 seconds so the NBA API doesn't get swarmed with our requests all at once and block IP addy
+                time.sleep(0.400)
+                final_dict[counter] = assistant.tabularize_prop()
+                counter+=1
+
+    #Outputs the Best Picks for the day (sorts them by probability)
+    print("\n\n\n\n\nBest Picks of the Day!:")
+    sorted_props = sorted(final_dict.items(),key=lambda x: x[1]["Probability"],reverse=True)
+    for player, prop_data in sorted_props:
+        print(prop_data['Printable Result'])
+
+    visualize_props(final_dict)
 
 
-#Invert the list to include inverted percentages for the under
+if __name__ == "__main__":
+    main()
+
+
